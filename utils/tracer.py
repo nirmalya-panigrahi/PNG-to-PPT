@@ -1,3 +1,4 @@
+import inspect
 import os
 import tempfile
 from PIL import Image
@@ -12,11 +13,7 @@ class TracerExecutionError(Exception):
 def trace_image_to_svg(img: Image.Image) -> str:
     """
     Wraps vtracer to convert a preprocessed PIL Image into an SVG string.
-    Configured explicitly for clean flat vector output with optimized path precision,
-    segment filtering, and hierarchical layering.
-
-    Includes robust exception boundaries around native C-extension calls to
-    prevent container crashes or unhandled segmentation faults.
+    Supports multiple installed vtracer signatures across versions.
     """
     input_tmp_path = None
     output_tmp_path = None
@@ -42,13 +39,23 @@ def trace_image_to_svg(img: Image.Image) -> str:
             splice_threshold=45,
         )
 
-        try:
-            vtracer.convert_image_to_svg_py(input_path=input_tmp_path, output_path=output_tmp_path, **tracer_kwargs)
-        except TypeError:
-            try:
-                vtracer.convert_image_to_svg_py(input_tmp_path, output_tmp_path, **tracer_kwargs)
-            except TypeError:
-                vtracer.convert_image_to_svg_py(input_file=input_tmp_path, output_file=output_tmp_path, **tracer_kwargs)
+        sig = inspect.signature(vtracer.convert_image_to_svg_py)
+        param_names = list(sig.parameters.keys())
+
+        if "input_path" in param_names and "output_path" in param_names:
+            vtracer.convert_image_to_svg_py(
+                input_path=input_tmp_path,
+                output_path=output_tmp_path,
+                **tracer_kwargs,
+            )
+        elif "input_file" in param_names and "output_file" in param_names:
+            vtracer.convert_image_to_svg_py(
+                input_file=input_tmp_path,
+                output_file=output_tmp_path,
+                **tracer_kwargs,
+            )
+        else:
+            vtracer.convert_image_to_svg_py(input_tmp_path, output_tmp_path, **tracer_kwargs)
 
         if not os.path.exists(output_tmp_path) or os.path.getsize(output_tmp_path) == 0:
             raise TracerExecutionError("Vtracer completed execution but produced an empty SVG output file.")
