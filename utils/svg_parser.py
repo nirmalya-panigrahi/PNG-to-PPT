@@ -1,5 +1,5 @@
 import xml.etree.ElementTree as ET
-from svgpathtools import parse_path, Polygon
+from svgpathtools import Line, Path, parse_path
 
 # Constants for PowerPoint EMU (English Metric Units) conversion
 EMUS_PER_INCH = 914400
@@ -111,10 +111,15 @@ def parse_and_normalize_svg(
                 if not points:
                     continue
                 coords = [float(p) for p in points.replace(",", " ").split() if p.strip()]
-                if len(coords) < 6:
+                if len(coords) < 6 or len(coords) % 2:
                     continue
                 complex_pts = [complex(coords[i], coords[i + 1]) for i in range(0, len(coords), 2)]
-                path_obj = Polygon(*complex_pts)
+                # Build a closed path explicitly; svgpathtools does not consistently
+                # export a Polygon helper across versions.
+                path_obj = Path(*(
+                    Line(complex_pts[i], complex_pts[(i + 1) % len(complex_pts)])
+                    for i in range(len(complex_pts))
+                ))
 
             if not path_obj or len(path_obj) == 0:
                 continue
