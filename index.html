@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PNG to Vector PPTX Converter</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #cbd5e1;
+      --border-active: #2563eb;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success-bg: #f0fdf4;
+      --success-border: #86efac;
+      --success-text: #166534;
+      --error-bg: #fef2f2;
+      --error-border: #fca5a5;
+      --error-text: #991b1b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+
+    .container {
+      background: var(--surface);
+      width: 100%;
+      max-width: 480px;
+      padding: 2.25rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+      border: 1px solid #e2e8f0;
+    }
+
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    /* Dropzone States */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background-color: #f8fafc;
+    }
+
+    .dropzone:hover {
+      border-color: var(--primary);
+      background-color: #eff6ff;
+    }
+
+    .dropzone.drag-over {
+      border-color: var(--border-active);
+      background-color: #dbeafe;
+      transform: scale(1.01);
+    }
+
+    .dropzone.processing {
+      pointer-events: none;
+      opacity: 0.7;
+      border-style: solid;
+      border-color: var(--primary);
+    }
+
+    .dropzone-icon {
+      font-size: 2.2rem;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+
+    .dropzone-title {
+      font-weight: 500;
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .dropzone-hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Status Banners */
+    .status-box {
+      margin-top: 1.25rem;
+      padding: 0.9rem 1rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      display: none;
+      align-items: center;
+      gap: 0.65rem;
+      line-height: 1.4;
+    }
+
+    .status-box.visible {
+      display: flex;
+    }
+
+    .status-processing {
+      background-color: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1e40af;
+    }
+
+    .status-success {
+      background-color: var(--success-bg);
+      border: 1px solid var(--success-border);
+      color: var(--success-text);
+    }
+
+    .status-error {
+      background-color: var(--error-bg);
+      border: 1px solid var(--error-border);
+      color: var(--error-text);
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #93c5fd;
+      border-top-color: #1d4ed8;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .reset-btn {
+      margin-top: 1rem;
+      width: 100%;
+      padding: 0.65rem;
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: none;
+    }
+
+    .reset-btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .reset-btn.visible {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PNG to Vector PPTX</h1>
+    <p class="subtitle">Convert flat PNG graphics into native editable PowerPoint shapes.</p>
+
+    <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload PNG file">
+      <span class="dropzone-icon">📄</span>
+      <div class="dropzone-title">Drag & drop your PNG here, or click to browse</div>
+      <div class="dropzone-hint">Strict .png format only • Max size 4.5 MB</div>
+      <input type="file" id="file-input" accept="image/png" hidden />
+    </div>
+
+    <div id="status-box" class="status-box" role="status" aria-live="polite">
+      <div id="spinner" class="spinner" style="display: none;"></div>
+      <span id="status-text"></span>
+    </div>
+
+    <button id="reset-btn" class="reset-btn" type="button">Convert Another PNG</button>
+  </div>
+
+  <script>
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("file-input");
+    const statusBox = document.getElementById("status-box");
+    const statusText = document.getElementById("status-text");
+    const spinner = document.getElementById("spinner");
+    const resetBtn = document.getElementById("reset-btn");
+
+    const MAX_SIZE_BYTES = 4.5 * 1024 * 1024;
+
+    function setUIState(state, message = "") {
+      dropzone.classList.remove("drag-over", "processing");
+      statusBox.className = "status-box";
+      spinner.style.display = "none";
+      resetBtn.classList.remove("visible");
+
+      if (state === "idle") {
+        fileInput.value = "";
+        return;
+      }
+
+      if (state === "drag-over") {
+        dropzone.classList.add("drag-over");
+        return;
+      }
+
+      statusBox.classList.add("visible");
+      statusText.textContent = message;
+
+      if (state === "processing") {
+        dropzone.classList.add("processing");
+        statusBox.classList.add("status-processing");
+        spinner.style.display = "block";
+      } else if (state === "success") {
+        statusBox.classList.add("status-success");
+        resetBtn.classList.add("visible");
+      } else if (state === "error") {
+        statusBox.classList.add("status-error");
+        resetBtn.classList.add("visible");
+      }
+    }
+
+    function validateClientFile(file) {
+      if (!file) {
+        return "No file detected.";
+      }
+      const isPngMime = file.type === "image/png";
+      const isPngExt = file.name.toLowerCase().endsWith(".png");
+      if (!isPngMime || !isPngExt) {
+        return "Invalid file type. Only .png files are permitted.";
+      }
+      if (file.size === 0) {
+        return "The selected file is empty.";
+      }
+      if (file.size > MAX_SIZE_BYTES) {
+        return "File exceeds the 4.5 MB serverless upload limit.";
+      }
+      return null;
+    }
+
+    async function handleFileUpload(file) {
+      const validationError = validateClientFile(file);
+      if (validationError) {
+        setUIState("error", validationError);
+        return;
+      }
+
+      setUIState("processing", `Vectorizing "${file.name}" and building PPTX...`);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch("/api/convert", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          let errMsg = `Server error (${response.status})`;
+          try {
+            const errData = await response.json();
+            if (errData.error) errMsg = errData.error;
+          } catch (_) {}
+          throw new Error(errMsg);
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const baseName = file.name.replace(/\.png$/i, "");
+
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = `${baseName}_vector.pptx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(downloadUrl);
+
+        setUIState("success", `Done! "${baseName}_vector.pptx" has been downloaded.`);
+      } catch (err) {
+        setUIState("error", err.message || "Conversion failed. Please try again.");
+      }
+    }
+
+    async function handleFileUpload(file) {
+      const validationError = validateClientFile(file);
+      if (validationError) {
+        setUIState("error", validationError);
+        return;
+      }
+
+      setUIState("processing", `Vectorizing "${file.name}" and building PPTX...`);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        // 1. Consume the serverless API via fetch()
+        const response = await fetch("/api/convert", {
+          method: "POST",
+          body: formData
+        });
+
+        // 2. Handle HTTP error codes gracefully (size limits, validation, etc.)
+        if (!response.ok) {
+          let errMsg = `Server error (${response.status})`;
+          try {
+            const errData = await response.json();
+            if (errData.error) {
+              errMsg = errData.error;
+            }
+          } catch (_) {}
+          throw new Error(errMsg);
+        }
+
+        // 3. Capture the returned binary .pptx stream as a blob
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const baseName = file.name.replace(/\.png$/i, "");
+
+        // 4. Create a temporary hidden anchor tag and trigger automatic download
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = `${baseName}_vector.pptx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        
+        // Cleanup object URL
+        window.URL.revokeObjectURL(downloadUrl);
+
+        setUIState("success", `Done! "${baseName}_vector.pptx" has been downloaded.`);
+      } catch (err) {
+        setUIState("error", err.message || "Conversion failed. Please try again.");
+      }
+    }
+
+    
+    // Click & Keyboard Triggers
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      if (e.target.files.length > 0) {
+        handleFileUpload(e.target.files[0]);
+      }
+    });
+
+    // Drag & Drop Events
+    ["dragenter", "dragover"].forEach((evt) => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!dropzone.classList.contains("processing")) {
+          setUIState("drag-over");
+        }
+      });
+    });
+
+    ["dragleave", "drop"].forEach((evt) => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (evt === "dragleave") {
+          setUIState("idle");
+        }
+      });
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+      if (dropzone.classList.contains("processing")) return;
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        handleFileUpload(files[0]);
+      } else {
+        setUIState("idle");
+      }
+    });
+
+    resetBtn.addEventListener("click", () => setUIState("idle"));
+  </script>
+</body>
+</html>
