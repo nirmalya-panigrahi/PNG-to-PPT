@@ -1,6 +1,7 @@
 import inspect
 import os
 import tempfile
+
 from PIL import Image
 import vtracer
 
@@ -39,23 +40,16 @@ def trace_image_to_svg(img: Image.Image) -> str:
             splice_threshold=45,
         )
 
-        sig = inspect.signature(vtracer.convert_image_to_svg_py)
+        func = vtracer.convert_image_to_svg_py
+        sig = inspect.signature(func)
         param_names = list(sig.parameters.keys())
 
         if "input_path" in param_names and "output_path" in param_names:
-            vtracer.convert_image_to_svg_py(
-                input_path=input_tmp_path,
-                output_path=output_tmp_path,
-                **tracer_kwargs,
-            )
+            func(input_path=input_tmp_path, output_path=output_tmp_path, **tracer_kwargs)
         elif "input_file" in param_names and "output_file" in param_names:
-            vtracer.convert_image_to_svg_py(
-                input_file=input_tmp_path,
-                output_file=output_tmp_path,
-                **tracer_kwargs,
-            )
+            func(input_file=input_tmp_path, output_file=output_tmp_path, **tracer_kwargs)
         else:
-            vtracer.convert_image_to_svg_py(input_tmp_path, output_tmp_path, **tracer_kwargs)
+            func(input_tmp_path, output_tmp_path, **tracer_kwargs)
 
         if not os.path.exists(output_tmp_path) or os.path.getsize(output_tmp_path) == 0:
             raise TracerExecutionError("Vtracer completed execution but produced an empty SVG output file.")
