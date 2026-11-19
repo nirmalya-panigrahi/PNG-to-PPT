@@ -1,5 +1,6 @@
 import inspect
 import os
+import re
 import tempfile
 
 from PIL import Image
@@ -9,6 +10,18 @@ import vtracer
 class TracerExecutionError(Exception):
     """Raised when the native Rust-powered vtracer engine fails or encounters an error."""
     pass
+
+
+# vtracer emits an XML declaration and a generator comment before the <svg> root,
+# so a bare startswith("<svg") check rejects perfectly valid output.
+_SVG_PROLOG_RE = re.compile(
+    r"\A\ufeff?\s*(?:<\?xml[^>]*\?>\s*)?(?:<!--.*?-->\s*)*<svg\b",
+    re.DOTALL,
+)
+
+
+def _looks_like_svg(text: str) -> bool:
+    return bool(_SVG_PROLOG_RE.match(text))
 
 
 def trace_image_to_svg(img: Image.Image) -> str:
@@ -57,7 +70,7 @@ def trace_image_to_svg(img: Image.Image) -> str:
         with open(output_tmp_path, "r", encoding="utf-8") as f_svg:
             svg_content = f_svg.read()
 
-        if not svg_content.strip().startswith("<svg"):
+        if not _looks_like_svg(svg_content):
             raise TracerExecutionError("Generated output is not a valid SVG document structure.")
 
         return svg_content

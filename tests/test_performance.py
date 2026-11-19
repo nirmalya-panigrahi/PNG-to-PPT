@@ -1,7 +1,7 @@
 import time
 import io
-import pytest
-from PIL import Image
+import random
+from PIL import Image, ImageDraw, ImageFilter
 
 from utils.security import validate_image_payload
 from utils.processor import quantize_and_preprocess_image
@@ -11,9 +11,20 @@ from utils.svg_parser import parse_and_normalize_svg
 from utils.ppt_builder import build_presentation_from_svg
 
 
-def create_sample_png_bytes(width=200, height=200) -> bytes:
-    """Helper to generate a clean sample PNG image in memory for profiling."""
-    img = Image.new("RGBA", (width, height), (37, 99, 235, 255))
+def create_sample_png_bytes(width=800, height=800) -> bytes:
+    """
+    Generates a deliberately busy image (hundreds of overlapping, softly blurred coloured
+    circles). A flat single-colour image traces to one shape and hides performance
+    regressions, so profile something that resembles real artwork instead.
+    """
+    rng = random.Random(1)
+    img = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(img)
+    for _ in range(400):
+        x, y = rng.randint(0, width), rng.randint(0, height)
+        r = rng.randint(5, width // 8)
+        draw.ellipse((x, y, x + r, y + r), fill=tuple(rng.randint(0, 255) for _ in range(3)))
+    img = img.filter(ImageFilter.GaussianBlur(1.5))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
@@ -23,7 +34,7 @@ def test_pipeline_stage_latencies_and_total_duration():
     """
     Measures execution time across each distinct pipeline stage 
     (Ingestion, Quantization, Tracing, Sanitization/Parsing, PPTX Compilation)
-    and asserts that the full end-to-end execution completes within 4.0 seconds.
+    and asserts that the full end-to-end execution completes well inside Vercel's 10 second limit (6.0s budget).
     """
     file_bytes = create_sample_png_bytes()
 
@@ -73,7 +84,7 @@ def test_pipeline_stage_latencies_and_total_duration():
     print(f" • Total End-to-End:       {total_duration:.4f}s")
 
     # Assert execution stays comfortably beneath Vercel's strict timeout threshold
-    assert total_duration < 4.0, (
+    assert total_duration < 6.0, (
         f"Performance regression detected: Pipeline took {total_duration:.2f}s "
-        f"(exceeds the 4.0-second limit)."
+        f"(exceeds the 6.0-second budget)."
     )

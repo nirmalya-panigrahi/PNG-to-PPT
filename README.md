@@ -4,7 +4,7 @@
 
 ### *Turn flat PNG graphics into native, fully editable PowerPoint (`.pptx`) vector slides instantly on Vercel Serverless.*
 
-[![CI Test Suite](https://github.com/nirmalya-iitkgp/PNG-to-PPT/actions/workflows/ci.yml/badge.svg)](https://github.com/nirmalya-iitkgp/PNG-to-PPT/actions/workflows/ci.yml)
+[![CI Test Suite](https://github.com/nirmalya-panigrahi/PNG-to-PPT/actions/workflows/ci.yml/badge.svg)](https://github.com/nirmalya-panigrahi/PNG-to-PPT/actions/workflows/ci.yml)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Vercel Deployment](https://img.shields.io/badge/vercel-serverless-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/)
 [![Rust Powered](https://img.shields.io/badge/vtracer-Rust%20Engine-DEA584?style=for-the-badge&logo=rust&logoColor=black)](https://github.com/visioncortex/vtracer)
@@ -76,10 +76,11 @@ png-to-pptx-converter/
 ├── api/
 │   └── convert.py             # ⚡ Core Flask serverless entry point with zero-leak cleanup
 ├── tests/
-│   ├── test_security.py       # 🔒 Input hardening & malware rejection tests
+│   ├── test_security.py       # 🔒 Input hardening & malware rejection tests (Flask test client)
+│   ├── test_regressions.py    # 🐛 Tracer prolog, SVG transforms, Bezier/custGeom output
 │   ├── test_sanitizer.py      # 🧹 SVG XML security sanitizer tests
-│   ├── test_performance.py    # ⏱️ Latency profiling (<4.0s execution guard)
-│   ├── test_memory.py         # 🧠 tracemalloc RAM footprint & leak detection tests
+│   ├── test_performance.py    # ⏱️ Latency profiling (execution-time guard)
+│   ├── test_memory.py         # 🧠 peak-RSS memory test
 │   └── test_e2e.py            # ✅ End-to-end binary & <a:custGeom> XML validation
 ├── utils/
 │   ├── security.py            # 🛡️ Magic number validation & size limits
@@ -99,7 +100,7 @@ png-to-pptx-converter/
 
 ### 1️⃣ Clone the Repository
 ```bash
-git clone https://github.com/nirmalya-iitkgp/PNG-to-PPT.git
+git clone https://github.com/nirmalya-panigrahi/PNG-to-PPT.git
 cd PNG-to-PPT
 ```
 
@@ -114,7 +115,7 @@ pip install -r requirements.txt
 ```bash
 python api/convert.py
 ```
-Open your browser and navigate to **`http://localhost:5000`** to test the drag-and-drop interface locally.
+Open your browser and navigate to **`http://localhost:5000`** to test the drag-and-drop interface locally. The server binds to `127.0.0.1` with the Werkzeug debugger **off**; set `FLASK_DEBUG=1` (or `HOST`/`PORT`) only if you need them.
 
 ---
 
@@ -124,7 +125,7 @@ This project includes comprehensive unit, security, memory, performance, and end
 
 ```bash
 # Install test runner dependencies
-pip install pytest requests
+pip install pytest
 
 # Execute the full test suite
 pytest tests/ -v
@@ -132,10 +133,11 @@ pytest tests/ -v
 
 | Test Module | What It Verifies |
 | :--- | :--- |
-| `test_security.py` | Rejects renamed PHP scripts, corrupted headers, and >4.5 MB payloads with HTTP 400/413. |
+| `test_security.py` | Rejects renamed PHP scripts, corrupted headers, empty/missing files and >4.5 MB payloads with HTTP 400/413. |
 | `test_sanitizer.py` | Blocks malicious `<image>`, `<script>`, and external `xlink:href` XML structures. |
-| `test_performance.py` | Enforces end-to-end latency under **4.0 seconds** for standard icons/logos. |
-| `test_memory.py` | Profiles `tracemalloc` peak RAM on 3000×3000px images and ensures zero memory leaks. |
+| `test_regressions.py` | Guards against: vtracer XML-prolog rejection, ignored `transform`s, flattened curves, lost holes. |
+| `test_performance.py` | Enforces end-to-end latency under a **6.0 second** budget on a busy ~800-shape image. |
+| `test_memory.py` | Checks peak process memory (RSS) on a 3000×3000px image. |
 | `test_e2e.py` | Unzips the compiled `.pptx` archive and verifies `<a:custGeom>` tags in `ppt/slides/slide1.xml`. |
 
 ---

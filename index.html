@@ -272,51 +272,6 @@
       formData.append("file", file);
 
       try {
-        const response = await fetch("/api/convert", {
-          method: "POST",
-          body: formData
-        });
-
-        if (!response.ok) {
-          let errMsg = `Server error (${response.status})`;
-          try {
-            const errData = await response.json();
-            if (errData.error) errMsg = errData.error;
-          } catch (_) {}
-          throw new Error(errMsg);
-        }
-
-        const blob = await response.blob();
-        const downloadUrl = URL.createObjectURL(blob);
-        const baseName = file.name.replace(/\.png$/i, "");
-
-        const link = document.createElement("a");
-        link.href = downloadUrl;
-        link.download = `${baseName}_vector.pptx`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(downloadUrl);
-
-        setUIState("success", `Done! "${baseName}_vector.pptx" has been downloaded.`);
-      } catch (err) {
-        setUIState("error", err.message || "Conversion failed. Please try again.");
-      }
-    }
-
-    async function handleFileUpload(file) {
-      const validationError = validateClientFile(file);
-      if (validationError) {
-        setUIState("error", validationError);
-        return;
-      }
-
-      setUIState("processing", `Vectorizing "${file.name}" and building PPTX...`);
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      try {
         // 1. Consume the serverless API via fetch()
         const response = await fetch("/api/convert", {
           method: "POST",
@@ -357,7 +312,6 @@
       }
     }
 
-    
     // Click & Keyboard Triggers
     dropzone.addEventListener("click", () => fileInput.click());
     dropzone.addEventListener("keydown", (e) => {
@@ -388,8 +342,8 @@
       dropzone.addEventListener(evt, (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (evt === "dragleave") {
-          setUIState("idle");
+        if (evt === "dragleave" && !dropzone.contains(e.relatedTarget)) {
+          dropzone.classList.remove("drag-over");
         }
       });
     });

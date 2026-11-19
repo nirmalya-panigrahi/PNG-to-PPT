@@ -1,15 +1,35 @@
 import io
+import logging
 import os
+import tempfile
 from flask import Flask, request, jsonify, send_file
+from werkzeug.exceptions import HTTPException
 
-from utils.security import validate_image_payload, SecurityValidationError
+from utils.security import validate_image_payload, SecurityValidationError, MAX_FILE_SIZE_BYTES
 from utils.processor import quantize_and_preprocess_image
 from utils.tracer import trace_image_to_svg, TracerExecutionError
 from utils.sanitizer import sanitize_svg_content, SVGSecurityError
 from utils.svg_parser import parse_and_normalize_svg
 from utils.ppt_builder import build_presentation_from_svg
 
+logger = logging.getLogger(__name__)
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 app = Flask(__name__)
+# Reject oversized bodies before they are buffered (file limit + multipart overhead).
+app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE_BYTES + 512 * 1024
+
+
+@app.errorhandler(413)
+def payload_too_large(_err):
+    return jsonify({"error": "File exceeds the maximum allowed upload size."}), 413
+
+
+@app.route("/", methods=["GET"])
+def index():
+    """Serves the web UI for local development (Vercel serves index.html statically)."""
+    return send_file(os.path.join(PROJECT_ROOT, "index.html"))
 
 
 @app.route("/api/convert", methods=["POST"])
@@ -61,7 +81,6 @@ def convert_image_to_pptx():
 
         # 7. Pipeline Step 6: Presentation Compilation with Zero-Leak Guarantee
         try:
-            import tempfile
             with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as tmp_out:
                 tmp_output_path = tmp_out.name
 
@@ -86,10 +105,21 @@ def convert_image_to_pptx():
             download_name="converted_presentation.pptx"
         )
 
-    except Exception as e:
-        return jsonify({"error": f"An unexpected server error occurred: {str(e)}"}), 500
+    except HTTPException:
+        # Let Flask render intended HTTP errors (e.g. 413 Request Entity Too Large).
+        raise
+    except Exception:
+        # Log details server-side; don't leak internals to the client.
+        logger.exception("Unexpected error while converting image")
+        return jsonify({"error": "An unexpected server error occurred."}), 500
 
 
-# For local development execution support
+# For local development execution support.
+# The Werkzeug debugger allows arbitrary code execution, so it is opt-in and the server
+# only binds to localhost unless explicitly told otherwise.
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(
+        host=os.environ.get("HOST", "127.0.0.1"),
+        port=int(os.environ.get("PORT", "5000")),
+        debug=os.environ.get("FLASK_DEBUG", "0") == "1",
+    )

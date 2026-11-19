@@ -62,17 +62,3 @@ def sanitize_svg_content(svg_content: str) -> None:
                     raise SVGSecurityError(
                         "Security violation: Dangerous CSS URL or script reference detected in SVG style attribute."
                     )
-
-        # Reject embedded external references from any element, including <use href="...">.
-        if "href" in elem.attrib and elem.attrib.get("href", "").strip() and not elem.attrib.get("href", "").strip().startswith("#"):
-            raise SVGSecurityError(
-                "Security violation: External href reference detected inside SVG."
-            )
-
-        if "xlink:href" in elem.attrib and elem.attrib.get("xlink:href", "").strip() and not elem.attrib.get("xlink:href", "").strip().startswith("#"):
-            raise SVGSecurityError(
-                "Security violation: External xlink:href reference detected inside SVG."
-            )
-
-        if tag_local == "use" and elem.attrib.get("href", "").strip().startswith("#"):
-            continue

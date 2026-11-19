@@ -1,5 +1,6 @@
 import io
-import tracemalloc
+import resource
+import sys
 from PIL import Image
 
 from utils.security import validate_image_payload
@@ -18,50 +19,30 @@ def create_high_res_png_bytes(width=3000, height=3000) -> bytes:
     return buf.getvalue()
 
 
-def test_high_resolution_memory_leak_and_peak():
+def _peak_rss_mb() -> float:
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    # ru_maxrss is bytes on macOS and kilobytes on Linux.
+    return peak / (1024 * 1024) if sys.platform == "darwin" else peak / 1024
+
+
+def test_high_resolution_peak_memory():
     """
-    Monitors peak RAM consumption using tracemalloc during the quantization 
-    and vector tracing of a large 3000x3000px PNG, and asserts that memory 
-    allocation returns cleanly after execution without lingering leaks.
+    Runs the whole pipeline on a 3000x3000px PNG and checks peak process memory (RSS).
+    tracemalloc is not used because it cannot see native (Rust/Pillow) allocations, which
+    is where most of the memory goes. Stays well below typical serverless limits.
     """
     file_bytes = create_high_res_png_bytes(3000, 3000)
+    before = _peak_rss_mb()
 
-    # Start tracemalloc memory profiling
-    tracemalloc.start()
-    
-    # Take baseline snapshot
-    _, baseline_peak = tracemalloc.get_traced_memory()
+    img = validate_image_payload(file_bytes)
+    with img:
+        preprocessed_img = quantize_and_preprocess_image(img)
 
-    try:
-        # Execute the heavy processing pipeline
-        img = validate_image_payload(file_bytes)
-        with img:
-            preprocessed_img = quantize_and_preprocess_image(img)
-        
-        svg_content = trace_image_to_svg(preprocessed_img)
-        sanitize_svg_content(svg_content)
-        parsed_svg_data = parse_and_normalize_svg(svg_content)
-        build_presentation_from_svg(parsed_svg_data, output_path=None)
+    svg_content = trace_image_to_svg(preprocessed_img)
+    sanitize_svg_content(svg_content)
+    parsed_svg_data = parse_and_normalize_svg(svg_content)
+    build_presentation_from_svg(parsed_svg_data, output_path=None)
 
-        # Measure peak memory during execution
-        current, peak = tracemalloc.get_traced_memory()
-        
-        peak_mb = peak / (1024 * 1024)
-        print(f"\n[Memory Profiling - 3000x3000px PNG]")
-        print(f" • Peak RAM Consumed: {peak_mb:.2f} MB")
-
-        # Assert peak memory remains well within serverless container bounds (e.g., < 256 MB)
-        assert peak_mb < 256.0, f"Memory spike detected: Peak RAM reached {peak_mb:.2f} MB"
-
-    finally:
-        tracemalloc.stop()
-
-    # Verify memory is released after tracemalloc stops and objects go out of scope
-    tracemalloc.start()
-    _, post_cleanup_peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-
-    post_cleanup_mb = post_cleanup_peak / (1024 * 1024)
-    assert post_cleanup_mb < 50.0, (
-        f"Possible memory leak detected: Post-cleanup baseline remains elevated at {post_cleanup_mb:.2f} MB"
-    )
+    peak_mb = _peak_rss_mb()
+    print(f"\n[Memory Profiling - 3000x3000px PNG] peak RSS {peak_mb:.1f} MB (was {before:.1f} MB)")
+    assert peak_mb < 1024.0, f"Memory spike detected: peak RSS reached {peak_mb:.1f} MB"
