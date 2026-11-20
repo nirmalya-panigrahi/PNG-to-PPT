@@ -1,0 +1,16 @@
+[project]
+name = "png-to-ppt"
+version = "1.0.0"
+description = "Convert PNG images to editable vector PowerPoint slides"
+requires-python = ">=3.10"
+# Keep in sync with requirements.txt (used by CI and local installs).
+dependencies = [
+    "Pillow==10.4.0",
+    "vtracer==0.6.11",
+    "svgpathtools==1.6.1",
+    "python-pptx==1.0.2",
+    "Flask==3.0.3",
+]
+
+[tool.vercel]
+entrypoint = "api.convert:app"
