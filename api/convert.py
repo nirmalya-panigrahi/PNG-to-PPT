@@ -1,7 +1,13 @@
 import io
 import logging
 import os
+import sys
 import tempfile
+
+# Allow `python api/convert.py` (which only puts api/ on sys.path) to import utils.*
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 from flask import Flask, request, jsonify, send_file
 from werkzeug.exceptions import HTTPException
 
@@ -19,6 +25,27 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app = Flask(__name__)
 # Reject oversized bodies before they are buffered (file limit + multipart overhead).
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE_BYTES + 512 * 1024
+
+
+def _allowed_origins():
+    return [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+
+
+@app.after_request
+def add_cors_headers(response):
+    """
+    Opt-in CORS so a statically hosted frontend (e.g. GitHub Pages) can call this API.
+    Set ALLOWED_ORIGINS to a comma-separated list such as
+    "https://nirmalya-panigrahi.github.io". Unset = same-origin only (the default).
+    """
+    allowed = _allowed_origins()
+    origin = request.headers.get("Origin")
+    if allowed and origin and ("*" in allowed or origin in allowed):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+        response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return response
 
 
 @app.errorhandler(413)

@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <!-- Conversion API base URL. Leave empty when served by Vercel/Flask (same origin).
+       For GitHub Pages, set to your Vercel URL, e.g. https://your-app.vercel.app -->
+  <meta name="api-base" content="" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PNG to Vector PPTX Converter</title>
   <style>
@@ -259,6 +262,10 @@
       return null;
     }
 
+    // Base URL of the conversion API. Empty = same origin (Vercel / local Flask).
+    // To host this page on GitHub Pages, set <meta name="api-base" content="https://your-app.vercel.app">.
+    const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || "").trim().replace(/\/$/, "");
+
     async function handleFileUpload(file) {
       const validationError = validateClientFile(file);
       if (validationError) {
@@ -273,7 +280,7 @@
 
       try {
         // 1. Consume the serverless API via fetch()
-        const response = await fetch("/api/convert", {
+        const response = await fetch(`${API_BASE}/api/convert`, {
           method: "POST",
           body: formData
         });
@@ -281,12 +288,21 @@
         // 2. Handle HTTP error codes gracefully (size limits, validation, etc.)
         if (!response.ok) {
           let errMsg = `Server error (${response.status})`;
+          let hadJsonError = false;
           try {
             const errData = await response.json();
             if (errData.error) {
               errMsg = errData.error;
+              hadJsonError = true;
             }
           } catch (_) {}
+          // A 404/405 without our JSON error body means a static host (e.g. GitHub Pages)
+          // answered instead of the Python API.
+          if (!hadJsonError && (response.status === 404 || response.status === 405)) {
+            errMsg = `Server error (${response.status}): this site is not running the conversion API. ` +
+              `Static hosts such as GitHub Pages cannot run Python - open the Vercel deployment, ` +
+              `or set the api-base meta tag in index.html to your Vercel URL.`;
+          }
           throw new Error(errMsg);
         }
 

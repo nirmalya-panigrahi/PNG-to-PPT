@@ -142,11 +142,20 @@ pytest tests/ -v
 
 ---
 
+## ⚠️ GitHub Pages cannot run the converter
+
+GitHub Pages only serves static files, so it answers the page's `POST /api/convert` with **HTTP 405**. The Python backend must run on Vercel (or locally). To keep the page on GitHub Pages anyway:
+
+1. Deploy the repo to Vercel and set the env var `ALLOWED_ORIGINS=https://<your-user>.github.io`.
+2. In `index.html`, set `<meta name="api-base" content="https://<your-app>.vercel.app" />`.
+
+Otherwise, just use the Vercel URL directly (the default same-origin setup needs no configuration).
+
 ## 🚢 One-Click Vercel Deployment
 
 1. Fork or push this repository to your **GitHub** account.
 2. Log in to your [Vercel Dashboard](https://vercel.com/) and click **Add New → Project**.
-3. Import **`PNG-to-PPT`**—Vercel will automatically detect `vercel.json` (`@vercel/python` runtime) and serve `index.html` at the root alongside `/api/convert`.
+3. Import **`PNG-to-PPT`**—Vercel will automatically detect `vercel.json` and serve `index.html` at the root alongside `/api/convert`.
 
 ---
 
