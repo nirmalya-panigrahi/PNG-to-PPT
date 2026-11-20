@@ -56,3 +56,19 @@ def test_empty_file_rejected(client):
 
     assert response.status_code == 400
     assert "error" in response.get_json()
+
+
+def test_cors_disabled_by_default(client, monkeypatch):
+    monkeypatch.delenv("ALLOWED_ORIGINS", raising=False)
+    response = client.post("/api/convert", headers={"Origin": "https://evil.example"})
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
+def test_cors_allows_only_configured_origin(client, monkeypatch):
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://nirmalya-panigrahi.github.io")
+
+    ok = client.post("/api/convert", headers={"Origin": "https://nirmalya-panigrahi.github.io"})
+    assert ok.headers.get("Access-Control-Allow-Origin") == "https://nirmalya-panigrahi.github.io"
+
+    other = client.post("/api/convert", headers={"Origin": "https://evil.example"})
+    assert "Access-Control-Allow-Origin" not in other.headers
